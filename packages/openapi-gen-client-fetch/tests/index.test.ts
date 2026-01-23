@@ -5,10 +5,17 @@ import { renderPathItem } from "../src/api-generator";
 import { ensureWriteFile, fileExists } from "../src/file-utils";
 import { openapiGenCode } from "../src/openapi-gen-code";
 import { renderSchema } from "../src/schema-generator";
+import { testNamingStrategy } from "./naming-strategies";
 import openapiSpec from "./openapi.json";
 import { cleanupTempDir, getTempPath, setupTempDir } from "./test-utils";
 
 import type * as IOpenAPISpec32 from "openapi-schema-type";
+import type { RendererOptions } from "../src/types";
+
+const rendererOptions: RendererOptions = {
+    namingStrategy: testNamingStrategy,
+    generateJSDoc: true,
+};
 
 beforeEach(async () => {
     await setupTempDir();
@@ -19,29 +26,28 @@ afterEach(async () => {
 });
 
 test("generate schema types", async () => {
-    // 测试 ApiErr schema
     const apiErrSchema = (openapiSpec as IOpenAPISpec32.OpenAPIDocument)
         .components?.schemas?.ApiErr;
     expect(apiErrSchema).toBeDefined();
 
     if (apiErrSchema) {
-        const { path, code } = renderSchema("ApiErr", apiErrSchema);
+        const { path, code } = renderSchema(
+            "ApiErr",
+            apiErrSchema,
+            rendererOptions,
+        );
 
-        // 验证文件路径
         expect(path).toBe("schemas/apierr.ts");
 
-        // 验证生成的代码
         expect(code).toContain("export type IApiErr");
         expect(code).toContain("code: number");
         expect(code).toContain("message: string");
 
-        // 验证可以写入文件
         const fullPath = getTempPath(path);
         await ensureWriteFile(fullPath, code);
         const fileExists_result = await fileExists(fullPath);
         expect(fileExists_result).toBe(true);
 
-        // 验证生成的代码是有效的 TypeScript
         const transpiled = await Bun.build({
             entrypoints: [fullPath],
             target: "node",
@@ -61,26 +67,25 @@ test("generate path item with parameters", async () => {
     expect(sftpCpPath).toBeDefined();
 
     if (sftpCpPath) {
-        const { path, code } = renderPathItem("/api/sftp/cp", sftpCpPath);
+        const { path, code } = renderPathItem(
+            "/api/sftp/cp",
+            sftpCpPath,
+            rendererOptions,
+        );
 
-        // 验证文件路径
         expect(path).toBe("api/sftpcp.ts");
 
-        // 验证生成的代码包含类型定义
         expect(code).toContain("export type IApiReqParamPostSftpCp");
         expect(code).toContain("uri: string");
         expect(code).toContain("target_path: string");
 
-        // 验证包含警告（因为参数标记为path但实际是query）
         expect(code).toContain("警告:");
         expect(code).toContain("参数 'uri' 标记为 path 参数");
 
-        // 验证包含fetch函数
         expect(code).toContain("export async function postSftpCp");
         expect(code).toContain("let url = ");
         expect(code).toContain("fetch(url, config)");
 
-        // 验证可以写入文件
         const fullPath = getTempPath(path);
         await ensureWriteFile(fullPath, code);
         const fileExists_result = await fileExists(fullPath);
@@ -95,21 +100,21 @@ test("generate path item with requestBody", async () => {
     expect(addTargetPath).toBeDefined();
 
     if (addTargetPath) {
-        const { path, code } = renderPathItem("/api/target/add", addTargetPath);
+        const { path, code } = renderPathItem(
+            "/api/target/add",
+            addTargetPath,
+            rendererOptions,
+        );
 
-        // 验证文件路径
         expect(path).toBe("api/targetadd.ts");
 
-        // 验证生成的代码包含类型定义
         expect(code).toContain("export type IApiReqDataPostTargetAdd");
-        expect(code).toContain("IModel"); // 应该引用 Model schema
+        expect(code).toContain("IModel");
 
-        // 验证包含fetch函数
         expect(code).toContain("export async function postTargetAdd");
         expect(code).toContain("'Content-Type': 'application/json'");
         expect(code).toContain("JSON.stringify(data)");
 
-        // 验证可以写入文件
         const fullPath = getTempPath(path);
         await ensureWriteFile(fullPath, code);
         const fileExists_result = await fileExists(fullPath);
@@ -118,7 +123,6 @@ test("generate path item with requestBody", async () => {
 });
 
 test("full integration test", async () => {
-    // 临时切换到临时目录
     const originalCwd = process.cwd();
     process.chdir(getTempPath());
 
@@ -130,12 +134,12 @@ test("full integration test", async () => {
                     .components,
             } as IOpenAPISpec32.OpenAPIDocument,
             {
+                namingStrategy: testNamingStrategy,
                 renderSchema,
                 renderPathItem,
             },
         );
 
-        // 验证生成的文件
         const schemaFiles = [
             "schemas/apierr.ts",
             "schemas/connectioninfo.ts",
@@ -147,13 +151,11 @@ test("full integration test", async () => {
             const fileExists_result = await fileExists(file);
             expect(fileExists_result).toBe(true);
 
-            // 验证文件内容不为空
             const content = readFileSync(file, "utf-8");
             expect(content.length).toBeGreaterThan(0);
             expect(content).toContain("export type I");
         }
 
-        // 验证API文件
         const apiFiles = [
             "api/sftpcp.ts",
             "api/sftphome.ts",
@@ -165,13 +167,11 @@ test("full integration test", async () => {
             const fileExists_result = await fileExists(file);
             expect(fileExists_result).toBe(true);
 
-            // 验证文件内容包含函数
             const content = readFileSync(file, "utf-8");
             expect(content.length).toBeGreaterThan(0);
             expect(content).toContain("export async function");
         }
 
-        // 验证 TypeScript 编译
         const transpiled = await Bun.build({
             entrypoints: schemaFiles.concat(apiFiles),
             target: "node",
@@ -186,25 +186,30 @@ test("full integration test", async () => {
 });
 
 test("handle edge cases", async () => {
-    // 测试空schema
     const emptySchema: IOpenAPISpec32.SchemaObject = {};
-    const { path, code } = renderSchema("EmptySchema", emptySchema);
+    const { path, code } = renderSchema(
+        "EmptySchema",
+        emptySchema,
+        rendererOptions,
+    );
 
     expect(path).toBe("schemas/emptyschema.ts");
     expect(code).toContain("export type IEmptySchema");
 
-    // 测试schema with enum
     const enumSchema: IOpenAPISpec32.SchemaObject = {
         type: "string",
         enum: ["pending", "completed", "failed"],
     };
 
-    const { code: enumCode } = renderSchema("StatusEnum", enumSchema);
+    const { code: enumCode } = renderSchema(
+        "StatusEnum",
+        enumSchema,
+        rendererOptions,
+    );
     expect(enumCode).toContain('"pending" | "completed" | "failed"');
 });
 
 test("warning generation", async () => {
-    // 创建一个有错误参数定义的路径
     const pathWithError: IOpenAPISpec32.PathItemObject = {
         post: {
             parameters: [
@@ -218,15 +223,17 @@ test("warning generation", async () => {
         },
     };
 
-    const { code } = renderPathItem("/api/test", pathWithError);
+    const { code } = renderPathItem(
+        "/api/test",
+        pathWithError,
+        rendererOptions,
+    );
 
-    // 应该生成警告
     expect(code).toContain("警告:");
     expect(code).toContain("参数 'invalid_param' 标记为 path 参数");
 });
 
 test("path parameter handling", async () => {
-    // 测试正确的路径参数处理
     const pathWithCorrectParams: IOpenAPISpec32.PathItemObject = {
         get: {
             parameters: [
@@ -251,9 +258,9 @@ test("path parameter handling", async () => {
     const { code } = renderPathItem(
         "/api/users/{id}/{action}",
         pathWithCorrectParams,
+        rendererOptions,
     );
 
-    // 验证路径参数替换逻辑
     expect(code).toContain("export type IApiReqParamGetUsers");
     expect(code).toContain("id: number");
     expect(code).toContain("action: string");
@@ -263,11 +270,10 @@ test("path parameter handling", async () => {
     expect(code).toContain(
         "url = url.replace(/{\\s*action\\s*}/g, encodeURIComponent(param.action))",
     );
-    expect(code).not.toContain("queryParams"); // 不应有查询参数，因为所有参数都是路径参数
+    expect(code).not.toContain("queryParams");
 });
 
 test("query parameter handling", async () => {
-    // 测试查询参数处理
     const pathWithQueryParams: IOpenAPISpec32.PathItemObject = {
         get: {
             parameters: [
@@ -289,18 +295,23 @@ test("query parameter handling", async () => {
         },
     };
 
-    const { code } = renderPathItem("/api/search", pathWithQueryParams);
+    const { code } = renderPathItem(
+        "/api/search",
+        pathWithQueryParams,
+        rendererOptions,
+    );
 
-    // 验证查询参数生成逻辑
     expect(code).toContain("export type IApiReqParamGetSearch");
-    expect(code).toContain("filter?: string"); // 可选参数
-    expect(code).toContain("limit?: number"); // 可选参数
+    expect(code).toContain("filter?: string");
+    expect(code).toContain("limit?: number");
     expect(code).toContain("const queryParams = []");
     expect(code).toContain(
-        "if (param.filter !== undefined) queryParams.push(`filter=${encodeURIComponent(param.filter)}`)",
+        "if (param.filter !== undefined) queryParams.push(`filter=$" +
+            "{encodeURIComponent(param.filter)}`)",
     );
     expect(code).toContain(
-        "if (param.limit !== undefined) queryParams.push(`limit=${encodeURIComponent(param.limit)}`)",
+        "if (param.limit !== undefined) queryParams.push(`limit=$" +
+            "{encodeURIComponent(param.limit)}`)",
     );
     expect(code).toContain(
         "if (queryParams.length > 0) url += '?' + queryParams.join('&')",
@@ -308,7 +319,6 @@ test("query parameter handling", async () => {
 });
 
 test("mixed path and query parameters", async () => {
-    // 测试路径参数和查询参数的混合使用
     const pathWithMixedParams: IOpenAPISpec32.PathItemObject = {
         get: {
             parameters: [
@@ -337,26 +347,29 @@ test("mixed path and query parameters", async () => {
         },
     };
 
-    const { code } = renderPathItem("/api/users/{userId}", pathWithMixedParams);
+    const { code } = renderPathItem(
+        "/api/users/{userId}",
+        pathWithMixedParams,
+        rendererOptions,
+    );
 
-    // 验证混合参数处理
     expect(code).toContain("export type IApiReqParamGetUsers");
     expect(code).toContain("userId: number");
-    expect(code).toContain("include?: string"); // 可选参数
-    expect(code).toContain("format?: string"); // 可选参数
+    expect(code).toContain("include?: string");
+    expect(code).toContain("format?: string");
 
-    // 验证路径参数替换
     expect(code).toContain(
         "url = url.replace(/{\\s*userId\\s*}/g, encodeURIComponent(param.userId))",
     );
 
-    // 验证查询参数生成
     expect(code).toContain("const queryParams = []");
     expect(code).toContain(
-        "if (param.include !== undefined) queryParams.push(`include=${encodeURIComponent(param.include)}`)",
+        "if (param.include !== undefined) queryParams.push(`include=$" +
+            "{encodeURIComponent(param.include)}`)",
     );
     expect(code).toContain(
-        "if (param.format !== undefined) queryParams.push(`format=${encodeURIComponent(param.format)}`)",
+        "if (param.format !== undefined) queryParams.push(`format=$" +
+            "{encodeURIComponent(param.format)}`)",
     );
     expect(code).toContain(
         "if (queryParams.length > 0) url += '?' + queryParams.join('&')",

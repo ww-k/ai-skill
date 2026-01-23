@@ -1,33 +1,18 @@
 import type * as IOpenAPISpec32 from "openapi-schema-type";
+import type { RendererOptions, SchemaRenderer } from "./types";
 
-/**
- * 将字符串转换为驼峰格式
- */
-function toCamelCase(str: string): string {
-    return str
-        .replace(/(?:^\w|[A-Z]|\b\w)/g, (word, index) => {
-            return index === 0 ? word.toUpperCase() : word.toUpperCase();
-        })
-        .replace(/\s+/g, "")
-        .replace(/-/g, "")
-        .replace(/_/g, "");
-}
-
-/**
- * 将 OpenAPI 类型映射为 TypeScript 类型
- */
 function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
-    // 优先检查 enum，因为它可能同时有 type 和 enum
     if (schema.enum) {
         return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
     }
 
     if (schema.$ref) {
-        // 处理引用，例如 #/components/schemas/Model
         const refPath = schema.$ref.split("/");
         const schemaName = refPath[refPath.length - 1];
         if (schemaName) {
-            return `I${toCamelCase(schemaName)}`;
+            const typeName =
+                schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
+            return `I${typeName}`;
         }
     }
 
@@ -57,8 +42,8 @@ function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
             case "array": {
                 const itemType = schema.items
                     ? mapOpenApiTypeToTsType(
-                        schema.items as IOpenAPISpec32.SchemaObject,
-                    )
+                          schema.items as IOpenAPISpec32.SchemaObject,
+                      )
                     : "unknown";
                 return `${itemType}[]`;
             }
@@ -94,9 +79,6 @@ function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
     return "unknown";
 }
 
-/**
- * 生成属性注释
- */
 function generatePropertyComment(schema: IOpenAPISpec32.SchemaObject): string {
     const comments: string[] = [];
 
@@ -112,14 +94,12 @@ function generatePropertyComment(schema: IOpenAPISpec32.SchemaObject): string {
     return comments.length > 0 ? `${comments.join("\n    ")}\n` : "    ";
 }
 
-/**
- * 生成 Schema 的 TypeScript 类型定义
- */
-export function renderSchema(
+export const renderSchema: SchemaRenderer = (
     key: string,
     schema: IOpenAPISpec32.SchemaObject,
-): { path: string; code: string } {
-    const typeName = `I${toCamelCase(key)}`;
+    options: RendererOptions,
+): { path: string; code: string } => {
+    const typeName = options.namingStrategy.toTypeName(key);
     const tsType = mapOpenApiTypeToTsType(schema);
 
     let code = "";
@@ -132,4 +112,4 @@ export function renderSchema(
         path: `schemas/${key.toLowerCase()}.ts`,
         code,
     };
-}
+};
