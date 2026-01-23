@@ -1,0 +1,19 @@
+{
+    "name": "ai-skill",
+    "version": "0.0.1",
+    "private": true,
+    "scripts": {
+        "build": "bun --filter '*' build",
+        "check": "bun --filter '*' check",
+        "dev": "bun --filter '*' dev",
+        "test": "bun --filter '*' test"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.3.2",
+        "@types/bun": "latest",
+        "@types/node": "^24.10.1"
+    },
+    "workspaces": [
+        "packages/*"
+    ]
+}

@@ -1,0 +1,27 @@
+{
+    "name": "@ai-skill/openapi-gen-client-fetch",
+    "version": "0.0.1",
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "bun build src/index.ts --target=node --outdir=./dist",
+        "check": "biome check --write",
+        "test": "bun test"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.3.2",
+        "@types/bun": "latest",
+        "@types/node": "^24.10.1",
+        "json-schema-meta-type": "^1.0.0",
+        "openapi-schema-type": "^1.0.0"
+    }
+}

@@ -1,0 +1,876 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "WebSSH RS API",
+        "description": "WebSSH RS 后端 API 文档",
+        "contact": {
+            "name": "API Support"
+        },
+        "license": {
+            "name": ""
+        },
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/api/sftp/cp": {
+            "post": {
+                "tags": ["sftp"],
+                "summary": "复制文件",
+                "description": "复制文件或目录到指定位置，支持递归复制",
+                "operationId": "sftp_cp",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "源文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/source.txt"
+                    },
+                    {
+                        "name": "target_path",
+                        "in": "path",
+                        "description": "目标路径",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "/home/user/destination.txt"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功复制文件"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/download": {
+            "get": {
+                "tags": ["sftp"],
+                "summary": "下载文件",
+                "description": "从远程服务器下载文件，支持断点续传和范围下载",
+                "operationId": "sftp_download",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/file.txt"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功下载文件",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer",
+                                        "format": "int32",
+                                        "minimum": 0
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "416": {
+                        "description": "请求范围不满足"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/home": {
+            "get": {
+                "tags": ["sftp"],
+                "summary": "获取主目录路径",
+                "description": "获取指定 SSH 目标的主目录路径",
+                "operationId": "sftp_home",
+                "parameters": [
+                    {
+                        "name": "target_id",
+                        "in": "path",
+                        "description": "SSH 目标 ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        "example": 1
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取主目录路径",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/ls": {
+            "get": {
+                "tags": ["sftp"],
+                "summary": "列出目录文件",
+                "description": "获取指定目录下的文件和文件夹列表，可选择是否显示隐藏文件",
+                "operationId": "sftp_ls",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "目录路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user"
+                    },
+                    {
+                        "name": "all",
+                        "in": "path",
+                        "description": "是否显示所有文件（包括隐藏文件）",
+                        "required": true,
+                        "schema": {
+                            "type": ["boolean", "null"]
+                        },
+                        "example": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取目录文件列表",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/SftpFile"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/mkdir": {
+            "post": {
+                "tags": ["sftp"],
+                "summary": "创建目录",
+                "description": "在指定路径创建新目录",
+                "operationId": "sftp_mkdir",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/newdir"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功创建目录"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/rename": {
+            "post": {
+                "tags": ["sftp"],
+                "summary": "重命名文件",
+                "description": "重命名文件或将文件移动到新位置",
+                "operationId": "sftp_rename",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "源文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/oldname.txt"
+                    },
+                    {
+                        "name": "target_path",
+                        "in": "path",
+                        "description": "目标路径",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "/home/user/newname.txt"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功重命名文件"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/rm": {
+            "post": {
+                "tags": ["sftp"],
+                "summary": "删除文件",
+                "description": "删除指定的文件",
+                "operationId": "sftp_rm",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/file.txt"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功删除文件"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/rm_rf": {
+            "post": {
+                "tags": ["sftp"],
+                "summary": "递归删除文件或目录",
+                "description": "递归删除指定的文件或目录及其所有子内容",
+                "operationId": "sftp_rm_rf",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "文件或目录路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/directory"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功递归删除文件或目录"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/stat": {
+            "get": {
+                "tags": ["sftp"],
+                "summary": "获取文件信息",
+                "description": "获取指定文件的详细元数据信息，包括大小、权限、修改时间等",
+                "operationId": "sftp_stat",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/file.txt"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取文件信息",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SftpFile"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/sftp/upload": {
+            "put": {
+                "tags": ["sftp"],
+                "summary": "上传文件",
+                "description": "向远程服务器上传文件，支持分块上传和完整性校验",
+                "operationId": "sftp_upload",
+                "parameters": [
+                    {
+                        "name": "uri",
+                        "in": "path",
+                        "description": "目标文件路径，格式: sftp://target_id/path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "sftp://1/home/user/upload.txt"
+                    }
+                ],
+                "requestBody": {
+                    "description": "文件内容",
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer",
+                                    "format": "int32",
+                                    "minimum": 0
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "成功上传文件",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SftpUploadResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/ssh/exec": {
+            "post": {
+                "tags": ["ssh"],
+                "summary": "执行 SSH 命令",
+                "description": "在指定的 SSH 目标上执行命令并返回输出结果",
+                "operationId": "ssh_exec",
+                "parameters": [
+                    {
+                        "name": "target_id",
+                        "in": "path",
+                        "description": "SSH 目标 ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        "example": 1
+                    }
+                ],
+                "requestBody": {
+                    "description": "要执行的命令",
+                    "content": {
+                        "text/plain": {
+                            "schema": {
+                                "type": "string"
+                            },
+                            "example": "ls -la"
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "成功执行命令",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/ssh_connection/expire": {
+            "post": {
+                "tags": ["ssh_connection"],
+                "summary": "使 SSH 连接过期",
+                "description": "强制断开指定的 SSH 连接，使其过期并清理相关资源",
+                "operationId": "ssh_connection_expire",
+                "parameters": [
+                    {
+                        "name": "target_id",
+                        "in": "path",
+                        "description": "SSH 目标 ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        "example": 1
+                    },
+                    {
+                        "name": "connection_id",
+                        "in": "path",
+                        "description": "连接 ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "abc123"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功使连接过期"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/ssh_connection/list": {
+            "get": {
+                "tags": ["ssh_connection"],
+                "summary": "获取 SSH 连接列表",
+                "description": "获取当前所有活跃的 SSH 连接列表，可按目标 ID 过滤",
+                "operationId": "ssh_connection_list",
+                "parameters": [
+                    {
+                        "name": "target_id",
+                        "in": "path",
+                        "description": "过滤指定目标的连接",
+                        "required": true,
+                        "schema": {
+                            "type": ["integer", "null"],
+                            "format": "int32"
+                        },
+                        "example": "1"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功获取连接列表",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ConnectionInfo"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/target/add": {
+            "post": {
+                "tags": ["target"],
+                "summary": "添加新的 SSH 目标",
+                "operationId": "target_add",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Model"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "成功添加 SSH 目标",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Model"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/target/list": {
+            "get": {
+                "tags": ["target"],
+                "summary": "获取 SSH 目标列表",
+                "operationId": "target_list",
+                "responses": {
+                    "200": {
+                        "description": "成功获取 SSH 目标列表",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Model"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/target/remove": {
+            "post": {
+                "tags": ["target"],
+                "summary": "删除 SSH 目标",
+                "operationId": "target_remove",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TargetRemovePayload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "成功删除 SSH 目标"
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        },
+        "/api/target/update": {
+            "post": {
+                "tags": ["target"],
+                "summary": "更新 SSH 目标",
+                "operationId": "target_update",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TargetUpdatePayload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "成功更新 SSH 目标",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Model"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ApiErr": {
+                "type": "object",
+                "required": ["code", "message"],
+                "properties": {
+                    "code": {
+                        "type": "integer",
+                        "format": "int32",
+                        "minimum": 0
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ConnectionInfo": {
+                "type": "object",
+                "description": "连接信息汇总，用于 list_all_connections 返回",
+                "required": [
+                    "id",
+                    "expired",
+                    "closed",
+                    "type_name",
+                    "target_id"
+                ],
+                "properties": {
+                    "closed": {
+                        "type": "boolean",
+                        "description": "连接是否已关闭"
+                    },
+                    "expired": {
+                        "type": "boolean",
+                        "description": "连接是否已过期"
+                    },
+                    "id": {
+                        "type": "string",
+                        "description": "SSH 连接 ID"
+                    },
+                    "target_id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "关联的 SSH 目标 ID"
+                    },
+                    "type_name": {
+                        "type": "string",
+                        "description": "连接类型名称"
+                    }
+                }
+            },
+            "Model": {
+                "type": "object",
+                "title": "TargetModel",
+                "required": ["host", "method", "user"],
+                "properties": {
+                    "host": {
+                        "type": "string",
+                        "description": "SSH 目标主机地址"
+                    },
+                    "key": {
+                        "type": ["string", "null"],
+                        "description": "私钥内容（当 method 为 private_key 时使用）"
+                    },
+                    "method": {
+                        "$ref": "#/components/schemas/TargetAuthMethod",
+                        "description": "认证方式：密码、私钥或无认证"
+                    },
+                    "password": {
+                        "type": ["string", "null"],
+                        "description": "密码（当 method 为 password 时使用）"
+                    },
+                    "port": {
+                        "type": ["integer", "null"],
+                        "format": "int32",
+                        "description": "SSH 端口号，默认为 22",
+                        "minimum": 0
+                    },
+                    "system": {
+                        "type": ["string", "null"],
+                        "description": "操作系统类型（如 windows、linux 等）"
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "SSH 用户名"
+                    }
+                }
+            },
+            "QueryTargetId": {
+                "type": "object",
+                "required": ["target_id"],
+                "properties": {
+                    "target_id": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "SftpFile": {
+                "type": "object",
+                "required": ["name", "type", "permissions"],
+                "properties": {
+                    "atime": {
+                        "type": ["integer", "null"],
+                        "format": "int32",
+                        "description": "最后访问时间",
+                        "minimum": 0
+                    },
+                    "mtime": {
+                        "type": ["integer", "null"],
+                        "format": "int32",
+                        "description": "最后修改时间",
+                        "minimum": 0
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "文件名"
+                    },
+                    "permissions": {
+                        "type": "string",
+                        "description": "权限字符串"
+                    },
+                    "size": {
+                        "type": ["integer", "null"],
+                        "format": "int64",
+                        "description": "文件大小（字节）",
+                        "minimum": 0
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "文件类型：f-文件，d-目录，l-符号链接，?-未知"
+                    }
+                }
+            },
+            "SftpLsPayload": {
+                "type": "object",
+                "required": ["uri"],
+                "properties": {
+                    "all": {
+                        "type": ["boolean", "null"],
+                        "description": "是否显示所有文件（包括隐藏文件）"
+                    },
+                    "uri": {
+                        "type": "string",
+                        "description": "SFTP 文件 URI，格式：sftp://target_id/path"
+                    }
+                }
+            },
+            "SftpUploadResponse": {
+                "type": "object",
+                "required": ["hash"],
+                "properties": {
+                    "hash": {
+                        "type": "string"
+                    }
+                }
+            },
+            "SshSessionExpirePayload": {
+                "type": "object",
+                "required": ["target_id", "connection_id"],
+                "properties": {
+                    "connection_id": {
+                        "type": "string",
+                        "description": "要过期的连接 ID"
+                    },
+                    "target_id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "SSH 目标 ID"
+                    }
+                }
+            },
+            "TargetAuthMethod": {
+                "type": "string",
+                "enum": ["password", "private_key", "none"]
+            },
+            "TargetRemovePayload": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "要删除的目标 ID"
+                    }
+                }
+            },
+            "TargetUpdatePayload": {
+                "type": "object",
+                "required": ["id", "host", "method", "user"],
+                "properties": {
+                    "host": {
+                        "type": "string",
+                        "description": "SSH 目标主机地址"
+                    },
+                    "id": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "目标 ID"
+                    },
+                    "key": {
+                        "type": ["string", "null"],
+                        "description": "私钥内容"
+                    },
+                    "method": {
+                        "$ref": "#/components/schemas/TargetAuthMethod",
+                        "description": "认证方式"
+                    },
+                    "password": {
+                        "type": ["string", "null"],
+                        "description": "密码"
+                    },
+                    "port": {
+                        "type": ["integer", "null"],
+                        "format": "int32",
+                        "description": "SSH 端口号",
+                        "minimum": 0
+                    },
+                    "system": {
+                        "type": ["string", "null"],
+                        "description": "操作系统类型"
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "SSH 用户名"
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "target",
+            "description": "SSH 目标管理 API"
+        },
+        {
+            "name": "ssh_connection",
+            "description": "SSH 连接管理 API"
+        },
+        {
+            "name": "ssh",
+            "description": "SSH 命令执行 API"
+        },
+        {
+            "name": "sftp",
+            "description": "SFTP 文件管理 API"
+        }
+    ]
+}
