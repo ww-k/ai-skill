@@ -1,4 +1,4 @@
-import type { NamingStrategy } from "./types";
+import type { OpenapiGenCodeOptions } from "./types";
 
 function toCamelCase(str: string): string {
     return str
@@ -26,11 +26,11 @@ function pathToCamelCase(path: string): string {
         .join("");
 }
 
-export const defaultNamingStrategy: NamingStrategy = {
+export const defaultOptions: OpenapiGenCodeOptions = {
     typePrefix: "I",
 
-    toTypeName(key: string): string {
-        return `I${toCamelCase(key)}`;
+    toSchemaTypeName(key: string, title?: string): string {
+        return `${this.typePrefix}ApiSchema${toCamelCase(title || key)}`;
     },
 
     toFunctionName(path: string, method: string): string {

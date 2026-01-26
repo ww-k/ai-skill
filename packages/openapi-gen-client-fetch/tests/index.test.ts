@@ -1,21 +1,17 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
+import { defaultOptions } from "../src";
 import { renderPathItem } from "../src/api-generator";
 import { ensureWriteFile, fileExists } from "../src/file-utils";
 import { openapiGenCode } from "../src/openapi-gen-code";
 import { renderSchema } from "../src/schema-generator";
-import { testNamingStrategy } from "./naming-strategies";
 import openapiSpec from "./openapi.json";
 import { cleanupTempDir, getTempPath, setupTempDir } from "./test-utils";
 
 import type * as IOpenAPISpec32 from "openapi-schema-type";
-import type { RendererOptions } from "../src/types";
 
-const rendererOptions: RendererOptions = {
-    namingStrategy: testNamingStrategy,
-    generateJSDoc: true,
-};
+type Schemas = Record<string, IOpenAPISpec32.SchemaObject>;
 
 beforeEach(async () => {
     await setupTempDir();
@@ -26,20 +22,16 @@ afterEach(async () => {
 });
 
 test("generate schema types", async () => {
-    const apiErrSchema = (openapiSpec as IOpenAPISpec32.OpenAPIDocument)
-        .components?.schemas?.ApiErr;
+    const schemas = openapiSpec.components.schemas as Schemas;
+    const apiErrSchema = schemas.ApiErr;
     expect(apiErrSchema).toBeDefined();
 
     if (apiErrSchema) {
-        const { path, code } = renderSchema(
-            "ApiErr",
-            apiErrSchema,
-            rendererOptions,
-        );
+        const { path, code } = renderSchema("ApiErr", schemas, defaultOptions);
 
         expect(path).toBe("schemas/apierr.ts");
 
-        expect(code).toContain("export type IApiErr");
+        expect(code).toContain("export type IApiSchemaApiErr");
         expect(code).toContain("code: number");
         expect(code).toContain("message: string");
 
@@ -70,7 +62,7 @@ test("generate path item with parameters", async () => {
         const { path, code } = renderPathItem(
             "/api/sftp/cp",
             sftpCpPath,
-            rendererOptions,
+            defaultOptions,
         );
 
         expect(path).toBe("api/sftpcp.ts");
@@ -103,7 +95,7 @@ test("generate path item with requestBody", async () => {
         const { path, code } = renderPathItem(
             "/api/target/add",
             addTargetPath,
-            rendererOptions,
+            defaultOptions,
         );
 
         expect(path).toBe("api/targetadd.ts");
@@ -128,22 +120,14 @@ test("full integration test", async () => {
 
     try {
         await openapiGenCode(
-            {
-                paths: (openapiSpec as IOpenAPISpec32.OpenAPIDocument).paths,
-                components: (openapiSpec as IOpenAPISpec32.OpenAPIDocument)
-                    .components,
-            } as IOpenAPISpec32.OpenAPIDocument,
-            {
-                namingStrategy: testNamingStrategy,
-                renderSchema,
-                renderPathItem,
-            },
+            openapiSpec as IOpenAPISpec32.OpenAPIDocument,
+            defaultOptions,
         );
 
         const schemaFiles = [
             "schemas/apierr.ts",
             "schemas/connectioninfo.ts",
-            "schemas/model.ts",
+            "schemas/targetmodel.ts",
             "schemas/sftpfile.ts",
         ];
 
@@ -186,25 +170,27 @@ test("full integration test", async () => {
 });
 
 test("handle edge cases", async () => {
-    const emptySchema: IOpenAPISpec32.SchemaObject = {};
+    const emptySchema: Schemas = { EmptySchema: {} };
     const { path, code } = renderSchema(
         "EmptySchema",
         emptySchema,
-        rendererOptions,
+        defaultOptions,
     );
 
     expect(path).toBe("schemas/emptyschema.ts");
-    expect(code).toContain("export type IEmptySchema");
+    expect(code).toContain("export type IApiSchemaEmptySchema");
 
-    const enumSchema: IOpenAPISpec32.SchemaObject = {
-        type: "string",
-        enum: ["pending", "completed", "failed"],
+    const enumSchema: Schemas = {
+        StatusEnum: {
+            type: "string",
+            enum: ["pending", "completed", "failed"],
+        },
     };
 
     const { code: enumCode } = renderSchema(
         "StatusEnum",
         enumSchema,
-        rendererOptions,
+        defaultOptions,
     );
     expect(enumCode).toContain('"pending" | "completed" | "failed"');
 });
@@ -223,11 +209,7 @@ test("warning generation", async () => {
         },
     };
 
-    const { code } = renderPathItem(
-        "/api/test",
-        pathWithError,
-        rendererOptions,
-    );
+    const { code } = renderPathItem("/api/test", pathWithError, defaultOptions);
 
     expect(code).toContain("警告:");
     expect(code).toContain("参数 'invalid_param' 标记为 path 参数");
@@ -258,7 +240,7 @@ test("path parameter handling", async () => {
     const { code } = renderPathItem(
         "/api/users/{id}/{action}",
         pathWithCorrectParams,
-        rendererOptions,
+        defaultOptions,
     );
 
     expect(code).toContain("export type IApiReqParamGetUsers");
@@ -298,7 +280,7 @@ test("query parameter handling", async () => {
     const { code } = renderPathItem(
         "/api/search",
         pathWithQueryParams,
-        rendererOptions,
+        defaultOptions,
     );
 
     expect(code).toContain("export type IApiReqParamGetSearch");
@@ -350,7 +332,7 @@ test("mixed path and query parameters", async () => {
     const { code } = renderPathItem(
         "/api/users/{userId}",
         pathWithMixedParams,
-        rendererOptions,
+        defaultOptions,
     );
 
     expect(code).toContain("export type IApiReqParamGetUsers");

@@ -1,15 +1,12 @@
 export { renderPathItem } from "./api-generator";
+export { defaultOptions } from "./default.ts";
 export {
     ensureDir,
     ensureWriteFile,
     fileExists,
     normalizePath,
 } from "./file-utils";
-export { defaultNamingStrategy } from "./naming-strategies.ts";
-export {
-    type OpenapiGenCodeOptions,
-    openapiGenCode,
-} from "./openapi-gen-code";
+export { openapiGenCode } from "./openapi-gen-code";
 export { renderSchema } from "./schema-generator";
 
-export type { NamingStrategy } from "./types";
+export type { OpenapiGenCodeOptions } from "./types";

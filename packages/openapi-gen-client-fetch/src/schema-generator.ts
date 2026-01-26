@@ -1,30 +1,36 @@
 import type * as IOpenAPISpec32 from "openapi-schema-type";
-import type { RendererOptions, SchemaRenderer } from "./types";
+import type { OpenapiGenCodeOptions, SchemaRenderer } from "./types";
 
-function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
+function mapOpenApiTypeToTsType(
+    schema: IOpenAPISpec32.SchemaObject,
+    schemas: Record<string, IOpenAPISpec32.SchemaObject>,
+    options: OpenapiGenCodeOptions,
+): string {
     if (schema.enum) {
         return schema.enum.map((value) => JSON.stringify(value)).join(" | ");
     }
 
     if (schema.$ref) {
-        const refPath = schema.$ref.split("/");
-        const schemaName = refPath[refPath.length - 1];
+        const schemaName = schema.$ref.replace("#/components/schemas/", "");
+        const refTargetSchema = schemas[schemaName];
         if (schemaName) {
-            const typeName =
-                schemaName.charAt(0).toUpperCase() + schemaName.slice(1);
-            return `I${typeName}`;
+            return options.toSchemaTypeName(schemaName, refTargetSchema?.title);
         }
     }
 
     if (schema.oneOf || schema.anyOf || schema.allOf) {
-        const schemas = [
+        const unionTypesShemas = [
             ...(schema.oneOf || []),
             ...(schema.anyOf || []),
             ...(schema.allOf || []),
         ];
-        const types = schemas
+        const types = unionTypesShemas
             .map((s) =>
-                mapOpenApiTypeToTsType(s as IOpenAPISpec32.SchemaObject),
+                mapOpenApiTypeToTsType(
+                    s as IOpenAPISpec32.SchemaObject,
+                    schemas,
+                    options,
+                ),
             )
             .join(schema.allOf ? " & " : " | ");
         return `(${types})`;
@@ -43,6 +49,8 @@ function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
                 const itemType = schema.items
                     ? mapOpenApiTypeToTsType(
                           schema.items as IOpenAPISpec32.SchemaObject,
+                          schemas,
+                          options,
                       )
                     : "unknown";
                 return `${itemType}[]`;
@@ -57,6 +65,8 @@ function mapOpenApiTypeToTsType(schema: IOpenAPISpec32.SchemaObject): string {
                             const isRequired = required.has(propName);
                             const propType = mapOpenApiTypeToTsType(
                                 propSchema as IOpenAPISpec32.SchemaObject,
+                                schemas,
+                                options,
                             );
                             const optional = isRequired ? "" : "?";
                             const comment = generatePropertyComment(
@@ -96,11 +106,13 @@ function generatePropertyComment(schema: IOpenAPISpec32.SchemaObject): string {
 
 export const renderSchema: SchemaRenderer = (
     key: string,
-    schema: IOpenAPISpec32.SchemaObject,
-    options: RendererOptions,
+    schemas: Record<string, IOpenAPISpec32.SchemaObject>,
+    options: OpenapiGenCodeOptions,
 ): { path: string; code: string } => {
-    const typeName = options.namingStrategy.toTypeName(key);
-    const tsType = mapOpenApiTypeToTsType(schema);
+    const schema = schemas[key] as IOpenAPISpec32.SchemaObject;
+    const name = schema.title || key;
+    const typeName = options.toSchemaTypeName(key, schema.title);
+    const tsType = mapOpenApiTypeToTsType(schema, schemas, options);
 
     let code = "";
     if (schema.description) {
@@ -109,7 +121,7 @@ export const renderSchema: SchemaRenderer = (
     code += `export type ${typeName} = ${tsType};\n`;
 
     return {
-        path: `schemas/${key.toLowerCase()}.ts`,
+        path: `schemas/${name.toLowerCase()}.ts`,
         code,
     };
 };

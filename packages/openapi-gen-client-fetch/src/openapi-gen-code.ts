@@ -1,59 +1,26 @@
+import { renderPathItem } from "./api-generator";
+import { defaultOptions } from "./default";
 import { ensureWriteFile } from "./file-utils";
-import { defaultNamingStrategy } from "./naming-strategies";
+import { renderSchema } from "./schema-generator";
 
 import type * as IOpenAPISpec32 from "openapi-schema-type";
-import type {
-    NamingStrategy,
-    PathItemRenderer,
-    RendererOptions,
-    SchemaRenderer,
-} from "./types";
-
-export interface OpenapiGenCodeOptions {
-    renderSchema?: SchemaRenderer;
-    renderPathItem?: PathItemRenderer;
-    namingStrategy?: NamingStrategy;
-}
+import type { OpenapiGenCodeOptions } from "./types";
 
 export async function openapiGenCode(
     { paths, components }: IOpenAPISpec32.OpenAPIDocument,
     options?: OpenapiGenCodeOptions,
 ) {
-    const namingStrategy = options?.namingStrategy || defaultNamingStrategy;
-    const rendererOptions: RendererOptions = {
-        namingStrategy,
-        generateJSDoc: true,
-    };
-
-    const renderSchemaFn =
-        options?.renderSchema ||
-        ((key, _schema, _opts) => {
-            const typeName = namingStrategy.toTypeName(key);
-
-            return {
-                path: `schemas/${key.toLowerCase()}.ts`,
-                code: `export type ${typeName} = any;\n`,
-            };
-        });
-
-    const renderPathItemFn =
-        options?.renderPathItem ||
-        ((path, _pathItem, _opts) => {
-            return {
-                path: `api/${path.replace(/\//g, "_").slice(1)}.ts`,
-                code: `// Generated for ${path}\n`,
-            };
-        });
+    const finalOptions = options || defaultOptions;
 
     if (components?.schemas) {
         const schemas = components.schemas;
         for (const schemaKey of Object.keys(
             schemas,
         ) as (keyof typeof schemas)[]) {
-            const { path, code } = renderSchemaFn(
+            const { path, code } = renderSchema(
                 schemaKey,
-                schemas[schemaKey] as IOpenAPISpec32.SchemaObject,
-                rendererOptions,
+                schemas,
+                finalOptions,
             );
             await ensureWriteFile(path, code);
         }
@@ -61,12 +28,12 @@ export async function openapiGenCode(
     if (paths) {
         for (const pathKey of Object.keys(paths)) {
             if (pathKey.startsWith("/")) {
-                const { path, code } = renderPathItemFn(
+                const { path, code } = renderPathItem(
                     pathKey as IOpenAPISpec32.PathKey,
                     paths[
                         pathKey as IOpenAPISpec32.PathKey
                     ] as IOpenAPISpec32.PathItemObject,
-                    rendererOptions,
+                    finalOptions,
                 );
                 await ensureWriteFile(path, code);
             }

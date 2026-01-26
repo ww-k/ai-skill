@@ -1,5 +1,5 @@
 import type * as IOpenAPISpec32 from "openapi-schema-type";
-import type { PathItemRenderer, RendererOptions } from "./types";
+import type { OpenapiGenCodeOptions, PathItemRenderer } from "./types";
 
 function isRealPathParam(
     param: IOpenAPISpec32.ParameterObject,
@@ -232,11 +232,10 @@ function generateFetchFunction(
 export const renderPathItem: PathItemRenderer = (
     path: string,
     pathItem: IOpenAPISpec32.PathItemObject,
-    options: RendererOptions,
+    options: OpenapiGenCodeOptions,
 ): { path: string; code: string } => {
     const warnings: string[] = [];
     const exports: string[] = [];
-    const { namingStrategy } = options;
 
     const httpMethods: Array<
         keyof Pick<
@@ -265,9 +264,9 @@ export const renderPathItem: PathItemRenderer = (
         warnings.push(...bodyWarnings);
 
         const hasBody = bodyTypeDef.length > 0;
-        const paramTypeName = namingStrategy.toParamTypeName(path, method);
-        const bodyTypeName = namingStrategy.toBodyTypeName(path, method);
-        const functionName = namingStrategy.toFunctionName(path, method);
+        const paramTypeName = options.toParamTypeName(path, method);
+        const bodyTypeName = options.toBodyTypeName(path, method);
+        const functionName = options.toFunctionName(path, method);
 
         const finalParamTypeDef = paramTypeDef.replace(
             "IApiReqParam",
