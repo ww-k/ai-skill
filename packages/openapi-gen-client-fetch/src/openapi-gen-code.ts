@@ -1,6 +1,6 @@
 import { renderPathItem } from "./api-generator";
 import { defaultOptions } from "./default";
-import { ensureWriteFile } from "./file-utils";
+import { emptyFile, ensureWriteFile } from "./file-utils";
 import { renderSchema } from "./schema-generator";
 
 import type * as IOpenAPISpec32 from "openapi-schema-type";
@@ -10,6 +10,7 @@ export async function openapiGenCode(
     { paths, components }: IOpenAPISpec32.OpenAPIDocument,
     options?: OpenapiGenCodeOptions,
 ) {
+    const emptySet = new Set();
     const finalOptions = options || defaultOptions;
 
     if (components?.schemas) {
@@ -22,6 +23,10 @@ export async function openapiGenCode(
                 schemas,
                 finalOptions,
             );
+            if (!emptySet.has(path)) {
+                await emptyFile(path);
+                emptySet.add(path);
+            }
             await ensureWriteFile(path, code);
         }
     }
@@ -35,6 +40,10 @@ export async function openapiGenCode(
                     ] as IOpenAPISpec32.PathItemObject,
                     finalOptions,
                 );
+                if (!emptySet.has(path)) {
+                    await emptyFile(path);
+                    emptySet.add(path);
+                }
                 await ensureWriteFile(path, code);
             }
         }

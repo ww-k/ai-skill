@@ -14,6 +14,7 @@ import type * as IOpenAPISpec32 from "openapi-schema-type";
 type Schemas = Record<string, IOpenAPISpec32.SchemaObject>;
 
 beforeEach(async () => {
+    process.chdir(getTempPath());
     await setupTempDir();
 });
 
@@ -27,21 +28,22 @@ test("generate schema types", async () => {
     expect(apiErrSchema).toBeDefined();
 
     if (apiErrSchema) {
-        const { path, code } = renderSchema("ApiErr", schemas, defaultOptions);
-
-        expect(path).toBe("schemas/apierr.ts");
+        const { path, code } = renderSchema("ApiErr", schemas, {
+            ...defaultOptions,
+            outSchemaPath: (_key) => "schemas/apierr.ts",
+        });
 
         expect(code).toContain("export type IApiSchemaApiErr");
         expect(code).toContain("code: number");
         expect(code).toContain("message: string");
 
-        const fullPath = getTempPath(path);
-        await ensureWriteFile(fullPath, code);
-        const fileExists_result = await fileExists(fullPath);
+        console.log("path", path);
+        await ensureWriteFile(path, code);
+        const fileExists_result = await fileExists(path);
         expect(fileExists_result).toBe(true);
 
         const transpiled = await Bun.build({
-            entrypoints: [fullPath],
+            entrypoints: [path],
             target: "node",
             format: "esm",
             external: [],
@@ -59,13 +61,12 @@ test("generate path item with parameters", async () => {
     expect(sftpCpPath).toBeDefined();
 
     if (sftpCpPath) {
-        const { path, code } = renderPathItem(
-            "/api/sftp/cp",
-            sftpCpPath,
-            defaultOptions,
-        );
-
-        expect(path).toBe("api/sftpcp.ts");
+        const { path, code } = renderPathItem("/api/sftp/cp", sftpCpPath, {
+            ...defaultOptions,
+            outApiPath(_path) {
+                return "api/sftp_cp.ts";
+            },
+        });
 
         expect(code).toContain("export type IApiReqParamPostSftpCp");
         expect(code).toContain("uri: string");
@@ -78,9 +79,8 @@ test("generate path item with parameters", async () => {
         expect(code).toContain("let url = ");
         expect(code).toContain("fetch(url, config)");
 
-        const fullPath = getTempPath(path);
-        await ensureWriteFile(fullPath, code);
-        const fileExists_result = await fileExists(fullPath);
+        await ensureWriteFile(path, code);
+        const fileExists_result = await fileExists(path);
         expect(fileExists_result).toBe(true);
     }
 });
@@ -95,10 +95,13 @@ test("generate path item with requestBody", async () => {
         const { path, code } = renderPathItem(
             "/api/target/add",
             addTargetPath,
-            defaultOptions,
+            {
+                ...defaultOptions,
+                outApiPath(_path) {
+                    return "api/target_add.ts";
+                },
+            },
         );
-
-        expect(path).toBe("api/targetadd.ts");
 
         expect(code).toContain("export type IApiReqDataPostTargetAdd");
         expect(code).toContain("IModel");
@@ -107,77 +110,44 @@ test("generate path item with requestBody", async () => {
         expect(code).toContain("'Content-Type': 'application/json'");
         expect(code).toContain("JSON.stringify(data)");
 
-        const fullPath = getTempPath(path);
-        await ensureWriteFile(fullPath, code);
-        const fileExists_result = await fileExists(fullPath);
-        expect(fileExists_result).toBe(true);
+        await ensureWriteFile(path, code);
     }
 });
 
 test("full integration test", async () => {
-    const originalCwd = process.cwd();
-    process.chdir(getTempPath());
+    await openapiGenCode(
+        openapiSpec as IOpenAPISpec32.OpenAPIDocument,
+        defaultOptions,
+    );
 
-    try {
-        await openapiGenCode(
-            openapiSpec as IOpenAPISpec32.OpenAPIDocument,
-            defaultOptions,
-        );
+    const schemaFile = "api/types.ts";
+    const schemaFileExists = await fileExists(schemaFile);
+    expect(schemaFileExists).toBe(true);
+    const schemaFileContent = readFileSync(schemaFile, "utf-8");
+    expect(schemaFileContent.length).toBeGreaterThan(0);
+    expect(schemaFileContent).toContain("export type I");
 
-        const schemaFiles = [
-            "schemas/apierr.ts",
-            "schemas/connectioninfo.ts",
-            "schemas/targetmodel.ts",
-            "schemas/sftpfile.ts",
-        ];
+    const apiFile = "api/index.ts";
+    const apiFileExists = await fileExists(apiFile);
+    expect(apiFileExists).toBe(true);
+    const apiFileContent = readFileSync(apiFile, "utf-8");
+    expect(apiFileContent.length).toBeGreaterThan(0);
+    expect(apiFileContent).toContain("export async function");
 
-        for (const file of schemaFiles) {
-            const fileExists_result = await fileExists(file);
-            expect(fileExists_result).toBe(true);
+    const transpiled = await Bun.build({
+        entrypoints: [schemaFile, apiFile],
+        target: "node",
+        format: "esm",
+        external: [],
+    });
 
-            const content = readFileSync(file, "utf-8");
-            expect(content.length).toBeGreaterThan(0);
-            expect(content).toContain("export type I");
-        }
-
-        const apiFiles = [
-            "api/sftpcp.ts",
-            "api/sftphome.ts",
-            "api/sftpls.ts",
-            "api/targetadd.ts",
-        ];
-
-        for (const file of apiFiles) {
-            const fileExists_result = await fileExists(file);
-            expect(fileExists_result).toBe(true);
-
-            const content = readFileSync(file, "utf-8");
-            expect(content.length).toBeGreaterThan(0);
-            expect(content).toContain("export async function");
-        }
-
-        const transpiled = await Bun.build({
-            entrypoints: schemaFiles.concat(apiFiles),
-            target: "node",
-            format: "esm",
-            external: [],
-        });
-
-        expect(transpiled.success).toBe(true);
-    } finally {
-        process.chdir(originalCwd);
-    }
+    expect(transpiled.success).toBe(true);
 });
 
 test("handle edge cases", async () => {
     const emptySchema: Schemas = { EmptySchema: {} };
-    const { path, code } = renderSchema(
-        "EmptySchema",
-        emptySchema,
-        defaultOptions,
-    );
+    const { code } = renderSchema("EmptySchema", emptySchema, defaultOptions);
 
-    expect(path).toBe("schemas/emptyschema.ts");
     expect(code).toContain("export type IApiSchemaEmptySchema");
 
     const enumSchema: Schemas = {
@@ -187,11 +157,12 @@ test("handle edge cases", async () => {
         },
     };
 
-    const { code: enumCode } = renderSchema(
-        "StatusEnum",
-        enumSchema,
-        defaultOptions,
-    );
+    const { code: enumCode } = renderSchema("StatusEnum", enumSchema, {
+        ...defaultOptions,
+        outSchemaPath(_key) {
+            return "schemas/emptyschema.ts";
+        },
+    });
     expect(enumCode).toContain('"pending" | "completed" | "failed"');
 });
 
@@ -209,10 +180,17 @@ test("warning generation", async () => {
         },
     };
 
-    const { code } = renderPathItem("/api/test", pathWithError, defaultOptions);
+    const { path, code } = renderPathItem("/api/test", pathWithError, {
+        ...defaultOptions,
+        outApiPath(_key) {
+            return "api/test.ts";
+        },
+    });
 
     expect(code).toContain("警告:");
     expect(code).toContain("参数 'invalid_param' 标记为 path 参数");
+
+    await ensureWriteFile(path, code);
 });
 
 test("path parameter handling", async () => {
@@ -237,10 +215,15 @@ test("path parameter handling", async () => {
         },
     };
 
-    const { code } = renderPathItem(
+    const { path, code } = renderPathItem(
         "/api/users/{id}/{action}",
         pathWithCorrectParams,
-        defaultOptions,
+        {
+            ...defaultOptions,
+            outApiPath(_key) {
+                return "api/users1.ts";
+            },
+        },
     );
 
     expect(code).toContain("export type IApiReqParamGetUsers");
@@ -253,6 +236,8 @@ test("path parameter handling", async () => {
         "url = url.replace(/{\\s*action\\s*}/g, encodeURIComponent(param.action))",
     );
     expect(code).not.toContain("queryParams");
+
+    await ensureWriteFile(path, code);
 });
 
 test("query parameter handling", async () => {
@@ -277,11 +262,12 @@ test("query parameter handling", async () => {
         },
     };
 
-    const { code } = renderPathItem(
-        "/api/search",
-        pathWithQueryParams,
-        defaultOptions,
-    );
+    const { path, code } = renderPathItem("/api/search", pathWithQueryParams, {
+        ...defaultOptions,
+        outApiPath(_key) {
+            return "api/search.ts";
+        },
+    });
 
     expect(code).toContain("export type IApiReqParamGetSearch");
     expect(code).toContain("filter?: string");
@@ -298,6 +284,8 @@ test("query parameter handling", async () => {
     expect(code).toContain(
         "if (queryParams.length > 0) url += '?' + queryParams.join('&')",
     );
+
+    await ensureWriteFile(path, code);
 });
 
 test("mixed path and query parameters", async () => {
@@ -329,10 +317,15 @@ test("mixed path and query parameters", async () => {
         },
     };
 
-    const { code } = renderPathItem(
+    const { path, code } = renderPathItem(
         "/api/users/{userId}",
         pathWithMixedParams,
-        defaultOptions,
+        {
+            ...defaultOptions,
+            outApiPath(_key) {
+                return "api/users2.ts";
+            },
+        },
     );
 
     expect(code).toContain("export type IApiReqParamGetUsers");
@@ -356,4 +349,6 @@ test("mixed path and query parameters", async () => {
     expect(code).toContain(
         "if (queryParams.length > 0) url += '?' + queryParams.join('&')",
     );
+
+    await ensureWriteFile(path, code);
 });

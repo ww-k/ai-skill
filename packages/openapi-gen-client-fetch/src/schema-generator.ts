@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type * as IOpenAPISpec32 from "openapi-schema-type";
 import type { OpenapiGenCodeOptions, SchemaRenderer } from "./types";
 
@@ -110,7 +112,6 @@ export const renderSchema: SchemaRenderer = (
     options: OpenapiGenCodeOptions,
 ): { path: string; code: string } => {
     const schema = schemas[key] as IOpenAPISpec32.SchemaObject;
-    const name = schema.title || key;
     const typeName = options.toSchemaTypeName(key, schema.title);
     const tsType = mapOpenApiTypeToTsType(schema, schemas, options);
 
@@ -120,8 +121,20 @@ export const renderSchema: SchemaRenderer = (
     }
     code += `export type ${typeName} = ${tsType};\n`;
 
+    const genSchemaDir = (path: string, title?: string) => {
+        let apiDir = "";
+        if (typeof options.outSchemaPath === "function") {
+            apiDir = options.outSchemaPath(path, title);
+        } else if (typeof options.outSchemaPath === "string") {
+            apiDir = options.outSchemaPath as string;
+        } else {
+            apiDir = "types.ts";
+        }
+        return resolve(options.outDir, apiDir);
+    };
+
     return {
-        path: `schemas/${name.toLowerCase()}.ts`,
+        path: genSchemaDir(key, schema.title),
         code,
     };
 };

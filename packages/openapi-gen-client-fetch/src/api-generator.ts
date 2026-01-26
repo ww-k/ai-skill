@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type * as IOpenAPISpec32 from "openapi-schema-type";
 import type { OpenapiGenCodeOptions, PathItemRenderer } from "./types";
 
@@ -158,7 +160,7 @@ function generateFetchFunction(
     hasBody: boolean = false,
     parameters?: IOpenAPISpec32.ParameterObject[],
 ): string {
-    let paramSignature = "";
+    let paramSignature = "()";
     if (hasPathParams || hasQueryParams || hasBody) {
         const params: string[] = [];
         if (hasPathParams || hasQueryParams)
@@ -320,22 +322,20 @@ export const renderPathItem: PathItemRenderer = (
         exports.unshift("");
     }
 
-    const pathCamelCase = path
-        .split("/")
-        .filter(Boolean)
-        .map((segment) => {
-            if (segment === "api") {
-                return "";
-            }
-            if (segment.startsWith(":") || segment.includes("{")) {
-                return "";
-            }
-            return segment.charAt(0).toUpperCase() + segment.slice(1);
-        })
-        .join("");
+    const genApiDir = (path: string) => {
+        let apiDir = "";
+        if (typeof options.outApiPath === "function") {
+            apiDir = options.outApiPath(path);
+        } else if (typeof options.outApiPath === "string") {
+            apiDir = options.outApiPath as string;
+        } else {
+            apiDir = "index.ts";
+        }
+        return resolve(options.outDir, apiDir);
+    };
 
     return {
-        path: `api/${pathCamelCase.toLowerCase()}.ts`,
+        path: genApiDir(path),
         code: exports.join("\n"),
     };
 };

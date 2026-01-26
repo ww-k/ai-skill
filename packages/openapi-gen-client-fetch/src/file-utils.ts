@@ -13,6 +13,16 @@ export async function ensureDir(dirPath: string): Promise<void> {
 }
 
 /**
+ * 清空文件内容
+ */
+export async function emptyFile(filePath: string): Promise<void> {
+    const absolutePath = resolve(filePath);
+    try {
+        await writeFile(absolutePath, "");
+    } catch {}
+}
+
+/**
  * 安全写入文件，确保目录存在
  */
 export async function ensureWriteFile(
@@ -21,7 +31,7 @@ export async function ensureWriteFile(
 ): Promise<void> {
     const absolutePath = resolve(filePath);
     await ensureDir(dirname(absolutePath));
-    await writeFile(absolutePath, content, "utf-8");
+    await writeFile(absolutePath, content, { encoding: "utf-8", flag: "a" });
 }
 
 /**

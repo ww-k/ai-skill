@@ -1,7 +1,11 @@
 import type * as IOpenAPISpec32 from "openapi-schema-type";
 
 export interface OpenapiGenCodeOptions {
-    typePrefix?: string;
+    outDir: string;
+    outApiPath: string | ((path: string) => string);
+    outSchemaPath: string | ((key: string, title?: string) => string);
+
+    typePrefix: string;
     toSchemaTypeName: (key: string, title?: string) => string;
     toFunctionName: (path: string, method: string) => string;
     toParamTypeName: (path: string, method: string) => string;

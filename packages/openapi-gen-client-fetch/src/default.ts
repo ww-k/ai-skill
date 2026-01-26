@@ -27,10 +27,13 @@ function pathToCamelCase(path: string): string {
 }
 
 export const defaultOptions: OpenapiGenCodeOptions = {
+    outDir: "api",
+    outApiPath: "index.ts",
+    outSchemaPath: "types.ts",
     typePrefix: "I",
 
     toSchemaTypeName(key: string, title?: string): string {
-        return `${this.typePrefix}ApiSchema${toCamelCase(title || key)}`;
+        return `${defaultOptions.typePrefix}ApiSchema${toCamelCase(title || key)}`;
     },
 
     toFunctionName(path: string, method: string): string {
@@ -42,12 +45,12 @@ export const defaultOptions: OpenapiGenCodeOptions = {
     toParamTypeName(path: string, method: string): string {
         const pathCamelCase = pathToCamelCase(path);
         const methodPrefix = method.toLowerCase();
-        return `${this.typePrefix}ApiReqParam${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;
+        return `${defaultOptions.typePrefix}ApiReqParam${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;
     },
 
     toBodyTypeName(path: string, method: string): string {
         const pathCamelCase = pathToCamelCase(path);
         const methodPrefix = method.toLowerCase();
-        return `${this.typePrefix}ApiReqData${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;
+        return `${defaultOptions.typePrefix}ApiReqData${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;
     },
 };
