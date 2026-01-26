@@ -1,2 +1,3 @@
 - [ ] 生成的代码存放的文件路径支持自定义
 - [ ] agent skill的描述文件格式不对，需要更新
+- [ ] 支持 operation.requestBody 为 ref 情况
