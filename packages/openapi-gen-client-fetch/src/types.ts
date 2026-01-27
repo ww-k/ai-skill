@@ -22,4 +22,5 @@ export type PathItemRenderer = (
     path: string,
     pathItem: IOpenAPISpec32.PathItemObject,
     options: OpenapiGenCodeOptions,
+    schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
 ) => { path: string; code: string };

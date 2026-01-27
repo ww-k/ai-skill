@@ -23,9 +23,9 @@ function mapOpenApiTypeToTypeScript(openApiType: string): string {
         case "boolean":
             return "boolean";
         case "array":
-            return "any[]";
+            return "unknown[]";
         case "object":
-            return "Record<string, any>";
+            return "Record<string, unknown>";
         case "null":
             return "null";
         default:
@@ -108,25 +108,33 @@ function generateParameterType(
 function generateRequestBodyType(
     path: string,
     _method: string,
-    requestBody?: IOpenAPISpec32.RequestBodyOrReferenceObject,
+    requestBody: IOpenAPISpec32.RequestBodyOrReferenceObject,
+    options: OpenapiGenCodeOptions,
+    schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
 ): { typeDef: string; warnings: string[] } {
-    if (!requestBody) {
-        return { typeDef: "", warnings: [] };
-    }
-
     const warnings: string[] = [];
-    let refType: string | null = null;
+    let refType: string = "unknown";
 
     if ("content" in requestBody) {
         for (const contentType of Object.keys(requestBody.content)) {
             const mediaType = requestBody.content[contentType];
             if (mediaType && "schema" in mediaType && mediaType?.schema?.$ref) {
-                const refPath = mediaType.schema.$ref.split("/");
-                const schemaName = refPath[refPath.length - 1];
-                if (schemaName) {
-                    refType = `I${schemaName.charAt(0).toUpperCase() + schemaName.slice(1)}`;
-                    break;
+                const schemaName = mediaType.schema.$ref.replace(
+                    "#/components/schemas/",
+                    "",
+                );
+                if (schemaName && schemas) {
+                    const refTargetSchema = schemas[schemaName];
+                    refType = options.toSchemaTypeName(
+                        schemaName,
+                        refTargetSchema?.title,
+                    );
+                } else {
+                    warnings.push(
+                        `警告: ${mediaType.schema.$ref} 未找到，使用 unknown 类型代替。`,
+                    );
                 }
+                break;
             }
         }
     }
@@ -142,9 +150,11 @@ function generateRequestBodyType(
         };
     }
 
-    warnings.push(`警告: ${path} 的请求体没有 schema 引用，使用 any 类型。`);
+    warnings.push(
+        `警告: ${path} 的请求体没有 schema 引用，使用 unknown 类型。`,
+    );
     return {
-        typeDef: `${description}export type IApiReqData = any;\n\n`,
+        typeDef: `${description}export type IApiReqData = unknown;\n\n`,
         warnings,
     };
 }
@@ -228,13 +238,14 @@ function generateFetchFunction(
     functionBody += "        throw error;\n";
     functionBody += "    }\n";
 
-    return `export async function ${functionName}${paramSignature}: Promise<any> {\n${functionBody}}\n\n`;
+    return `export async function ${functionName}${paramSignature}: Promise<unknown> {\n${functionBody}}\n\n`;
 }
 
 export const renderPathItem: PathItemRenderer = (
     path: string,
     pathItem: IOpenAPISpec32.PathItemObject,
     options: OpenapiGenCodeOptions,
+    schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
 ): { path: string; code: string } => {
     const warnings: string[] = [];
     const exports: string[] = [];
@@ -257,30 +268,46 @@ export const renderPathItem: PathItemRenderer = (
         const operation = pathItem[method];
         if (!operation) return;
 
-        const { typeDef: paramTypeDef, warnings: paramWarnings } =
-            generateParameterType(path, method, operation.parameters);
-        warnings.push(...paramWarnings);
-
-        const { typeDef: bodyTypeDef, warnings: bodyWarnings } =
-            generateRequestBodyType(path, method, operation.requestBody);
-        warnings.push(...bodyWarnings);
-
-        const hasBody = bodyTypeDef.length > 0;
         const paramTypeName = options.toParamTypeName(path, method);
         const bodyTypeName = options.toBodyTypeName(path, method);
         const functionName = options.toFunctionName(path, method);
 
-        const finalParamTypeDef = paramTypeDef.replace(
-            "IApiReqParam",
-            paramTypeName,
-        );
-        const finalBodyTypeDef = bodyTypeDef.replace(
-            "IApiReqData",
-            bodyTypeName,
-        );
+        let hasPathParams = false;
+        let hasQueryParams = false;
+        if (operation.parameters) {
+            hasPathParams = operation.parameters.some(
+                (p) => p.in === "path" && isRealPathParam(p, path),
+            );
+            hasQueryParams = operation.parameters.some((p) => p.in === "query");
 
-        if (finalParamTypeDef) exports.push(finalParamTypeDef);
-        if (finalBodyTypeDef) exports.push(finalBodyTypeDef);
+            const { typeDef: paramTypeDef, warnings: paramWarnings } =
+                generateParameterType(path, method, operation.parameters);
+            warnings.push(...paramWarnings);
+            const finalParamTypeDef = paramTypeDef.replace(
+                "IApiReqParam",
+                paramTypeName,
+            );
+            if (finalParamTypeDef) exports.push(finalParamTypeDef);
+        }
+
+        const hasBody = "requestBody" in operation;
+        if (operation.requestBody) {
+            const { typeDef: bodyTypeDef, warnings: bodyWarnings } =
+                generateRequestBodyType(
+                    path,
+                    method,
+                    operation.requestBody,
+                    options,
+                    schemas,
+                );
+            warnings.push(...bodyWarnings);
+            const finalBodyTypeDef = bodyTypeDef.replace(
+                "IApiReqData",
+                bodyTypeName,
+            );
+
+            if (finalBodyTypeDef) exports.push(finalBodyTypeDef);
+        }
 
         if (operation.summary || operation.description) {
             exports.push("/**");
@@ -292,15 +319,6 @@ export const renderPathItem: PathItemRenderer = (
             }
             exports.push(" */");
         }
-
-        const hasPathParams = operation.parameters
-            ? operation.parameters.some(
-                  (p) => p.in === "path" && isRealPathParam(p, path),
-              )
-            : false;
-        const hasQueryParams = operation.parameters
-            ? operation.parameters.some((p) => p.in === "query")
-            : false;
 
         exports.push(
             generateFetchFunction(

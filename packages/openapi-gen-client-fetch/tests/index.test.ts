@@ -14,12 +14,12 @@ import type * as IOpenAPISpec32 from "openapi-schema-type";
 type Schemas = Record<string, IOpenAPISpec32.SchemaObject>;
 
 beforeEach(async () => {
-    process.chdir(getTempPath());
     await setupTempDir();
+    process.chdir(getTempPath());
 });
 
 afterEach(async () => {
-    await cleanupTempDir();
+    //await cleanupTempDir();
 });
 
 test("generate schema types", async () => {
@@ -103,14 +103,16 @@ test("generate path item with requestBody", async () => {
             },
         );
 
+        await ensureWriteFile(path, code);
+
         expect(code).toContain("export type IApiReqDataPostTargetAdd");
-        expect(code).toContain("IModel");
+        expect(code).toContain(
+            "警告: #/components/schemas/Model 未找到，使用 unknown 类型代替。",
+        );
 
         expect(code).toContain("export async function postTargetAdd");
         expect(code).toContain("'Content-Type': 'application/json'");
         expect(code).toContain("JSON.stringify(data)");
-
-        await ensureWriteFile(path, code);
     }
 });
 

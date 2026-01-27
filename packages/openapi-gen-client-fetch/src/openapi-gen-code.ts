@@ -13,8 +13,8 @@ export async function openapiGenCode(
     const emptySet = new Set();
     const finalOptions = options || defaultOptions;
 
-    if (components?.schemas) {
-        const schemas = components.schemas;
+    const schemas = components?.schemas;
+    if (schemas) {
         for (const schemaKey of Object.keys(
             schemas,
         ) as (keyof typeof schemas)[]) {
@@ -39,6 +39,7 @@ export async function openapiGenCode(
                         pathKey as IOpenAPISpec32.PathKey
                     ] as IOpenAPISpec32.PathItemObject,
                     finalOptions,
+                    schemas,
                 );
                 if (!emptySet.has(path)) {
                     await emptyFile(path);
