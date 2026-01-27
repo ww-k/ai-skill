@@ -48,7 +48,7 @@ export const defaultOptions: OpenapiGenCodeOptions = {
         return `${defaultOptions.typePrefix}ApiReqParam${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;
     },
 
-    toBodyTypeName(path: string, method: string): string {
+    toReqBodyTypeName(path: string, method: string): string {
         const pathCamelCase = pathToCamelCase(path);
         const methodPrefix = method.toLowerCase();
         return `${defaultOptions.typePrefix}ApiReqData${methodPrefix.charAt(0).toUpperCase() + methodPrefix.slice(1)}${pathCamelCase}`;

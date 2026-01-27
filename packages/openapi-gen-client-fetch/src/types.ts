@@ -9,7 +9,7 @@ export interface OpenapiGenCodeOptions {
     toSchemaTypeName: (key: string, title?: string) => string;
     toFunctionName: (path: string, method: string) => string;
     toParamTypeName: (path: string, method: string) => string;
-    toBodyTypeName: (path: string, method: string) => string;
+    toReqBodyTypeName: (path: string, method: string) => string;
 }
 
 export type SchemaRenderer = (

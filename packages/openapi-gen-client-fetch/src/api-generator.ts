@@ -168,18 +168,18 @@ function generateFetchFunction(
     method: string,
     functionName: string,
     paramTypeName: string,
-    bodyTypeName: string,
+    resBodyTypeName: string,
     hasPathParams: boolean = false,
     hasQueryParams: boolean = false,
-    hasBody: boolean = false,
+    hasResBody: boolean = false,
     parameters?: IOpenAPISpec32.ParameterObject[],
 ): string {
     let paramSignature = "()";
-    if (hasPathParams || hasQueryParams || hasBody) {
+    if (hasPathParams || hasQueryParams || hasResBody) {
         const params: string[] = [];
         if (hasPathParams || hasQueryParams)
             params.push(`param: ${paramTypeName}`);
-        if (hasBody) params.push(`data: ${bodyTypeName}`);
+        if (hasResBody) params.push(`data: ${resBodyTypeName}`);
         paramSignature = `(${params.join(", ")})`;
     }
 
@@ -216,7 +216,7 @@ function generateFetchFunction(
     functionBody += "    const config: RequestInit = {\n";
     functionBody += `        method: '${method.toUpperCase()}',\n`;
 
-    if (hasBody) {
+    if (hasResBody) {
         functionBody += "        headers: {\n";
         functionBody += "            'Content-Type': 'application/json',\n";
         functionBody += "        },\n";
@@ -232,7 +232,15 @@ function generateFetchFunction(
         // biome-ignore lint/suspicious/noTemplateCurlyInString: ignore
         "        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);\n";
     functionBody += "    }\n";
-    functionBody += "    return await response.json();\n";
+    functionBody +=
+        "    const contentType = response.headers.get('content-type');\n";
+    functionBody += "    if (contentType?.includes('application/json')) {\n";
+    functionBody += "        return await response.json();\n";
+    functionBody += "    } else if (contentType?.includes('text/')) {\n";
+    functionBody += "        return await response.text();\n";
+    functionBody += "    } else {\n";
+    functionBody += "        return await response;\n";
+    functionBody += "    }\n";
 
     return `export async function ${functionName}${paramSignature}: Promise<unknown> {\n${functionBody}}\n\n`;
 }
@@ -266,7 +274,7 @@ export const renderPathItem: PathItemRenderer = (
         if (!operation) return;
 
         const paramTypeName = options.toParamTypeName(path, method);
-        const bodyTypeName = options.toBodyTypeName(path, method);
+        const reqBodyTypeName = options.toReqBodyTypeName(path, method);
         const functionName = options.toFunctionName(path, method);
 
         let hasPathParams = false;
@@ -304,7 +312,7 @@ export const renderPathItem: PathItemRenderer = (
             dependencies.push(...bodyDependencies);
             const finalBodyTypeDef = bodyTypeDef.replace(
                 "IApiReqData",
-                bodyTypeName,
+                reqBodyTypeName,
             );
 
             if (finalBodyTypeDef) exports.push(finalBodyTypeDef);
@@ -327,7 +335,7 @@ export const renderPathItem: PathItemRenderer = (
                 method,
                 functionName,
                 paramTypeName,
-                bodyTypeName,
+                reqBodyTypeName,
                 hasPathParams,
                 hasQueryParams,
                 hasBody,

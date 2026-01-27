@@ -1,3 +1,7 @@
 - [x] 生成的代码存放的文件路径支持自定义
-- [ ] agent skill的描述文件格式不对，需要更新
 - [x] 支持 operation.requestBody 为 ref 情况
+- [x] 支持根据运行时response headers的content-type媒体类型来返回对应的结果
+- [ ] 支持根据openapi.json中定义的 request body content的媒体类型来处理参数和添加对应的消息头
+- [ ] 支持根据openapi.json中定义的response content的媒体类型来返回对应的结果
+- [ ] 支持根据openapi.json中定义的response content的媒体类型来声明返回的类型
+- [ ] agent skill的描述文件格式不对，需要更新
