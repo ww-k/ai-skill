@@ -191,10 +191,6 @@ function generateFetchFunction(
         if (parameters) {
             parameters.forEach((param) => {
                 if (param.in === "path") {
-                    const _pathParamPattern = new RegExp(
-                        `{\\s*${param.name}\\s*}`,
-                        "g",
-                    );
                     functionBody += `    url = url.replace(/{\\s*${param.name}\\s*}/g, encodeURIComponent(param.${param.name}));\n`;
                 }
             });
@@ -229,18 +225,14 @@ function generateFetchFunction(
 
     functionBody += "    };\n    \n";
 
-    functionBody += "    try {\n";
-    functionBody += "        const response = await fetch(url, config);\n";
-    functionBody += "        if (!response.ok) {\n";
-    functionBody += "            const errorText = await response.text();\n";
+    functionBody += "    const response = await fetch(url, config);\n";
+    functionBody += "    if (!response.ok) {\n";
+    functionBody += "        const errorText = await response.text();\n";
     functionBody +=
         // biome-ignore lint/suspicious/noTemplateCurlyInString: ignore
-        "            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);\n";
-    functionBody += "        }\n";
-    functionBody += "        return await response.json();\n";
-    functionBody += "    } catch (error) {\n";
-    functionBody += "        throw error;\n";
+        "        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);\n";
     functionBody += "    }\n";
+    functionBody += "    return await response.json();\n";
 
     return `export async function ${functionName}${paramSignature}: Promise<unknown> {\n${functionBody}}\n\n`;
 }
