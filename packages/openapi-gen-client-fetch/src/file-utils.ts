@@ -27,7 +27,7 @@ export async function emptyFile(filePath: string): Promise<void> {
  */
 export async function ensureWriteFile(
     filePath: string,
-    content: string,
+    content: string | string[],
 ): Promise<void> {
     const absolutePath = resolve(filePath);
     await ensureDir(dirname(absolutePath));

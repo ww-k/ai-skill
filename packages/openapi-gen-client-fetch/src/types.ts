@@ -16,11 +16,11 @@ export type SchemaRenderer = (
     key: string,
     schemas: Record<string, IOpenAPISpec32.SchemaObject>,
     options: OpenapiGenCodeOptions,
-) => { path: string; code: string };
+) => { path: string; code: string; typeName: string };
 
 export type PathItemRenderer = (
     path: string,
     pathItem: IOpenAPISpec32.PathItemObject,
     options: OpenapiGenCodeOptions,
     schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
-) => { path: string; code: string };
+) => { path: string; code: string; dependencies: string[] };

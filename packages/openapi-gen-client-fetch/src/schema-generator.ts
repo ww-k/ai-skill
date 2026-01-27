@@ -110,7 +110,7 @@ export const renderSchema: SchemaRenderer = (
     key: string,
     schemas: Record<string, IOpenAPISpec32.SchemaObject>,
     options: OpenapiGenCodeOptions,
-): { path: string; code: string } => {
+) => {
     const schema = schemas[key] as IOpenAPISpec32.SchemaObject;
     const typeName = options.toSchemaTypeName(key, schema.title);
     const tsType = mapOpenApiTypeToTsType(schema, schemas, options);
@@ -135,6 +135,7 @@ export const renderSchema: SchemaRenderer = (
 
     return {
         path: genSchemaDir(key, schema.title),
+        typeName,
         code,
     };
 };

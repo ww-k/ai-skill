@@ -111,8 +111,9 @@ function generateRequestBodyType(
     requestBody: IOpenAPISpec32.RequestBodyOrReferenceObject,
     options: OpenapiGenCodeOptions,
     schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
-): { typeDef: string; warnings: string[] } {
+): { typeDef: string; warnings: string[]; dependencies: string[] } {
     const warnings: string[] = [];
+    const dependencies: string[] = [];
     let refType: string = "unknown";
 
     if ("content" in requestBody) {
@@ -129,6 +130,7 @@ function generateRequestBodyType(
                         schemaName,
                         refTargetSchema?.title,
                     );
+                    dependencies.push(refType);
                 } else {
                     warnings.push(
                         `警告: ${mediaType.schema.$ref} 未找到，使用 unknown 类型代替。`,
@@ -147,6 +149,7 @@ function generateRequestBodyType(
         return {
             typeDef: `${description}export type IApiReqData = ${refType};\n\n`,
             warnings,
+            dependencies,
         };
     }
 
@@ -156,6 +159,7 @@ function generateRequestBodyType(
     return {
         typeDef: `${description}export type IApiReqData = unknown;\n\n`,
         warnings,
+        dependencies,
     };
 }
 
@@ -246,9 +250,10 @@ export const renderPathItem: PathItemRenderer = (
     pathItem: IOpenAPISpec32.PathItemObject,
     options: OpenapiGenCodeOptions,
     schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
-): { path: string; code: string } => {
+) => {
     const warnings: string[] = [];
     const exports: string[] = [];
+    const dependencies: string[] = [];
 
     const httpMethods: Array<
         keyof Pick<
@@ -292,15 +297,19 @@ export const renderPathItem: PathItemRenderer = (
 
         const hasBody = "requestBody" in operation;
         if (operation.requestBody) {
-            const { typeDef: bodyTypeDef, warnings: bodyWarnings } =
-                generateRequestBodyType(
-                    path,
-                    method,
-                    operation.requestBody,
-                    options,
-                    schemas,
-                );
+            const {
+                typeDef: bodyTypeDef,
+                warnings: bodyWarnings,
+                dependencies: bodyDependencies,
+            } = generateRequestBodyType(
+                path,
+                method,
+                operation.requestBody,
+                options,
+                schemas,
+            );
             warnings.push(...bodyWarnings);
+            dependencies.push(...bodyDependencies);
             const finalBodyTypeDef = bodyTypeDef.replace(
                 "IApiReqData",
                 bodyTypeName,
@@ -355,5 +364,6 @@ export const renderPathItem: PathItemRenderer = (
     return {
         path: genApiDir(path),
         code: exports.join("\n"),
+        dependencies,
     };
 };
