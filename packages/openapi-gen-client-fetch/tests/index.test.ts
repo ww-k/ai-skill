@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "bun:test";
+import { beforeAll, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 import { defaultOptions } from "../src";
@@ -13,13 +13,10 @@ import type * as IOpenAPISpec32 from "openapi-schema-type";
 
 type Schemas = Record<string, IOpenAPISpec32.SchemaObject>;
 
-beforeEach(async () => {
+beforeAll(async () => {
+    await cleanupTempDir();
     await setupTempDir();
     process.chdir(getTempPath());
-});
-
-afterEach(async () => {
-    //await cleanupTempDir();
 });
 
 test("generate schema types", async () => {

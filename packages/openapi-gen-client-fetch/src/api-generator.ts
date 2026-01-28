@@ -36,14 +36,9 @@ function mapOpenApiTypeToTypeScript(openApiType: string): string {
 function generateParameterType(
     path: string,
     paramTypeName: string,
-    parameters?: IOpenAPISpec32.ParameterObject[],
+    parameters: IOpenAPISpec32.ParameterObject[],
 ): { typeDef: string; warnings: string[] } {
     const warnings: string[] = [];
-
-    if (!parameters || parameters.length === 0) {
-        return { typeDef: "", warnings };
-    }
-
     const properties: string[] = [];
     const required = new Set<string>();
 
@@ -106,7 +101,7 @@ function generateParameterType(
 }
 
 function generateRequestBodyType(
-    path: string,
+    _path: string,
     reqBodyTypeName: string,
     requestBody: IOpenAPISpec32.RequestBodyOrReferenceObject,
     options: OpenapiGenCodeOptions,
@@ -145,19 +140,8 @@ function generateRequestBodyType(
         ? `/**\n * ${requestBody.description}\n */\n`
         : "";
 
-    if (refType) {
-        return {
-            typeDef: `${description}export type IApiReqData = ${refType};\n\n`,
-            warnings,
-            dependencies,
-        };
-    }
-
-    warnings.push(
-        `警告: ${path} 的请求体没有 schema 引用，使用 unknown 类型。`,
-    );
     return {
-        typeDef: `${description}export type ${reqBodyTypeName} = unknown;\n\n`,
+        typeDef: `${description}export type ${reqBodyTypeName} = ${refType};\n\n`,
         warnings,
         dependencies,
     };
@@ -169,18 +153,27 @@ function generateFetchFunction(
     functionName: string,
     paramTypeName: string,
     resBodyTypeName: string,
-    hasPathParams: boolean = false,
-    hasQueryParams: boolean = false,
-    hasResBody: boolean = false,
-    parameters?: IOpenAPISpec32.ParameterObject[],
+    operation: IOpenAPISpec32.OperationObject,
 ): string {
-    let paramSignature = "()";
+    const { parameters } = operation;
+    const hasResBody = "requestBody" in operation;
+    let hasPathParams = false;
+    let hasQueryParams = false;
+
+    if (parameters) {
+        hasPathParams = parameters.some(
+            (p) => p.in === "path" && isRealPathParam(p, path),
+        );
+        hasQueryParams = parameters.some((p) => p.in === "query");
+    }
+
+    let paramSignature = "";
     if (hasPathParams || hasQueryParams || hasResBody) {
         const params: string[] = [];
         if (hasPathParams || hasQueryParams)
             params.push(`param: ${paramTypeName}`);
         if (hasResBody) params.push(`data: ${resBodyTypeName}`);
-        paramSignature = `(${params.join(", ")})`;
+        paramSignature = params.join(", ");
     }
 
     let functionBody = "    ";
@@ -242,7 +235,7 @@ function generateFetchFunction(
     functionBody += "        return await response;\n";
     functionBody += "    }\n";
 
-    return `export async function ${functionName}${paramSignature}: Promise<unknown> {\n${functionBody}}\n\n`;
+    return `export async function ${functionName}(${paramSignature}): Promise<unknown> {\n${functionBody}}\n\n`;
 }
 
 export const renderPathItem: PathItemRenderer = (
@@ -277,21 +270,17 @@ export const renderPathItem: PathItemRenderer = (
         const reqBodyTypeName = options.toReqBodyTypeName(path, method);
         const functionName = options.toFunctionName(path, method);
 
-        let hasPathParams = false;
-        let hasQueryParams = false;
         if (operation.parameters) {
-            hasPathParams = operation.parameters.some(
-                (p) => p.in === "path" && isRealPathParam(p, path),
-            );
-            hasQueryParams = operation.parameters.some((p) => p.in === "query");
-
             const { typeDef: paramTypeDef, warnings: paramWarnings } =
-                generateParameterType(path, paramTypeName, operation.parameters);
+                generateParameterType(
+                    path,
+                    paramTypeName,
+                    operation.parameters,
+                );
             warnings.push(...paramWarnings);
-            exports.push(paramTypeDef)
+            exports.push(paramTypeDef);
         }
 
-        const hasBody = "requestBody" in operation;
         if (operation.requestBody) {
             const {
                 typeDef: bodyTypeDef,
@@ -327,10 +316,7 @@ export const renderPathItem: PathItemRenderer = (
                 functionName,
                 paramTypeName,
                 reqBodyTypeName,
-                hasPathParams,
-                hasQueryParams,
-                hasBody,
-                operation.parameters,
+                operation,
             ),
         );
     });
