@@ -35,7 +35,7 @@ function mapOpenApiTypeToTypeScript(openApiType: string): string {
 
 function generateParameterType(
     path: string,
-    _method: string,
+    paramTypeName: string,
     parameters?: IOpenAPISpec32.ParameterObject[],
 ): { typeDef: string; warnings: string[] } {
     const warnings: string[] = [];
@@ -98,7 +98,7 @@ function generateParameterType(
         return { typeDef: "", warnings };
     }
 
-    const typeDef = `export type IApiReqParam = {\n${properties.join(
+    const typeDef = `export type ${paramTypeName} = {\n${properties.join(
         "\n",
     )}\n};\n\n`;
 
@@ -107,7 +107,7 @@ function generateParameterType(
 
 function generateRequestBodyType(
     path: string,
-    _method: string,
+    reqBodyTypeName: string,
     requestBody: IOpenAPISpec32.RequestBodyOrReferenceObject,
     options: OpenapiGenCodeOptions,
     schemas?: Record<string, IOpenAPISpec32.SchemaObject>,
@@ -157,7 +157,7 @@ function generateRequestBodyType(
         `警告: ${path} 的请求体没有 schema 引用，使用 unknown 类型。`,
     );
     return {
-        typeDef: `${description}export type IApiReqData = unknown;\n\n`,
+        typeDef: `${description}export type ${reqBodyTypeName} = unknown;\n\n`,
         warnings,
         dependencies,
     };
@@ -286,13 +286,9 @@ export const renderPathItem: PathItemRenderer = (
             hasQueryParams = operation.parameters.some((p) => p.in === "query");
 
             const { typeDef: paramTypeDef, warnings: paramWarnings } =
-                generateParameterType(path, method, operation.parameters);
+                generateParameterType(path, paramTypeName, operation.parameters);
             warnings.push(...paramWarnings);
-            const finalParamTypeDef = paramTypeDef.replace(
-                "IApiReqParam",
-                paramTypeName,
-            );
-            if (finalParamTypeDef) exports.push(finalParamTypeDef);
+            exports.push(paramTypeDef)
         }
 
         const hasBody = "requestBody" in operation;
@@ -303,19 +299,14 @@ export const renderPathItem: PathItemRenderer = (
                 dependencies: bodyDependencies,
             } = generateRequestBodyType(
                 path,
-                method,
+                reqBodyTypeName,
                 operation.requestBody,
                 options,
                 schemas,
             );
             warnings.push(...bodyWarnings);
             dependencies.push(...bodyDependencies);
-            const finalBodyTypeDef = bodyTypeDef.replace(
-                "IApiReqData",
-                reqBodyTypeName,
-            );
-
-            if (finalBodyTypeDef) exports.push(finalBodyTypeDef);
+            exports.push(bodyTypeDef);
         }
 
         if (operation.summary || operation.description) {
